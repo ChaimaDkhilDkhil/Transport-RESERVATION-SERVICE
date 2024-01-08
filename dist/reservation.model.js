@@ -9,8 +9,9 @@ const transportReservationSchema = new mongoose_1.default.Schema({
     userId: { type: String, required: true },
     transportId: { type: String, required: true },
     nbPerson: { type: Number, required: true },
-    date: { type: Number, required: true },
+    date: { type: Date, required: true },
     luggage: { type: Number, required: true },
+    duration: { type: Number, required: true },
     status: { type: String, required: true },
 });
 transportReservationSchema.plugin(mongoose_paginate_1.default);
