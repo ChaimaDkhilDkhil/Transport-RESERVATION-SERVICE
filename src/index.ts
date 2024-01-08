@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import mongoose from "mongoose";
-import TransportReservation from "./reservation.model"; // Assuming reservation.model exports the model
+import TransportReservation from "./reservation.model"; 
 import bodyParser from "body-parser";
 
 const nodemailer = require('nodemailer');
@@ -52,7 +52,7 @@ mongoose.connect(uri, (err) => {
 
 app.post('/reserve', async (req: Request, res: Response) => {
   try {
-    const { userId, transportId, nbPerson, date, luggage } = req.body;
+    const { userId, transportId, nbPerson, date, luggage,duration } = req.body;
 
     const newTransportBooking = new TransportReservation({
       userId,
@@ -60,13 +60,14 @@ app.post('/reserve', async (req: Request, res: Response) => {
       nbPerson,
       date,
       luggage,
+      duration,
       status: "en attente"
     });
 
     const existingReservation = await TransportReservation.findOne({ userId: userId, transportId: transportId });
 
     if (existingReservation) {
-      res.status(400).json('L\'utilisateur a déjà réservé ce vol.');
+      res.status(400).json('L\'utilisateur a déjà réservé ce transport.');
     } else {
       newTransportBooking.save((err, savedTransportBooking) => {
         if (err) {
@@ -113,8 +114,136 @@ app.put('/setStatus/:id', async (req: Request, res: Response) => {
   }
 });
 
-// ... (remaining routes)
+app.delete('/cancelBooking/:id', async (req:any, res:any) => {
+  try {
+    const transportReservation = await TransportReservation.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Booking deleted successfully', data: transportReservation });
+} catch (error) {
+    res.status(500).json({ message: 'Error deleting booking' });
+}
+});
 
+
+app.delete('/deleteByTransportId/:id', async (req: any, res: any) => {
+  try {
+
+    const result = await TransportReservation.deleteMany({ transportId: req.params.id });
+
+    res.json({ message: 'Bookings deleted successfully', data: result });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting bookings' });
+  }
+});
+
+app.put('/updateBooking', async (req:any, res:any) => {
+  try {
+    
+    const transportReservation = await TransportReservation.findByIdAndUpdate(req.body._id, req.body, { new: true });
+    res.json({ message: 'Booking updated successfully', data: transportReservation });
+} catch (error) {
+    res.status(500).json({ message: 'Error updating Booking'});
+}
+});
+
+
+app.get('/UserTransportBookings', keycloak.protect('realm:client'), async (req, res) => {
+
+  const id = req.query.id as string;
+
+  const page = parseInt(req.query.page as string) || 1;
+  const pageSize = parseInt(req.query.size as string) || 10;
+
+  try {
+    const transportReservation = await TransportReservation.paginate(
+      { userId: id },
+      { page: page, limit: pageSize }
+    );
+
+    res.send(transportReservation);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching transport Reservation', error: error });
+  }
+});
+app.get('/transportBookings', keycloak.protect('realm:admin'), async (req:any, res:any) => {
+  
+  const page = parseInt(req.query.page as string) || 1;
+  const pageSize = parseInt(req.query.size as string) || 10;
+
+  try {
+    const transportReservation = await TransportReservation.paginate(
+      { status:"en attente"},
+      { page: page, limit: pageSize }
+    );
+
+    res.send(transportReservation);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching transport Reservation', error: error });
+  }});
+
+app.get('/transportBookings/:id', async (req:any, res:any) => {
+  try {
+    const transportReservation = await TransportReservation.find({_id:req.params.id}).exec();
+    res.json(transportReservation);
+} catch (error) {
+    res.status(500).json({ message: 'Error fetching transport Reservation' });
+}
+});
+
+
+app.post('/send-email', (req:any, res:any) => {
+  try {
+      const { transport,transportBooking,user } = req.body;
+
+      const mailOptions = {
+          from: 'teamflyware@gmail.com',
+          to: [user.email],
+          subject: "FlyWare Transport Reservation",
+          html: `
+          <h3 style="font-size: 17px;">Hi ${user.username},</h3>
+          <p style="font-size: 14px;">Thank you for your booking. We're pleased to tell you that your reservation at FlyWare agency has been received and confirmed.</p>
+      
+          <h3 style="font-size: 17px;">Transport details</h3>
+          <ul style="font-size: 14px;">
+            <li>Transport matricule: ${transport._id}</li>
+            <li>Mark : ${transport.mark}</li>
+            <li>Adress :${transport.location}</li>
+            <li>Price: ${transport.price} $</li> 
+            <li>max seats: ${transport.nbPerson}</li>
+            <li>max luggage: ${transport.nbLuggage}</li>         
+         
+            </ul>
+      
+          <h3 style="font-size: 17px;">Reservation details</h3>
+          <ul style="font-size: 14px;">
+            <li>Reservation number: ${transportBooking._id}</li>
+            <li>Date :  ${new Date(transportBooking.date).toISOString().split('T')[0]}</li>
+            <li>Duration: ${transportBooking.duration}</li>
+            <li>Class: ${transportBooking.type}</li>
+          </ul>
+      
+          <p style="font-size: 14px;">Please contact us if you have any questions about your booking.</p>
+          <p style="font-size: 14px;">We're looking forward to seeing you!</p>
+      
+          <p style="font-size: 14px;">FlyWare Team</p>
+          <p style="font-size: 14px;">+216 55 666 777</p>
+          <p style="font-size: 14px;">teamflyware@gmail.com</p>
+
+        `
+        };
+      transporter.sendMail(mailOptions, (error:any, info:any) => {
+          if (error) {
+              console.log(error);
+              res.status(500).json({ message: 'Error sending email' });
+          } else {
+              console.log('Email sent:', info.response);
+              res.json({ message: 'Email sent successfully' });
+          }
+      });
+  } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
 app.get("/", (req: Request, resp: Response) => {
   resp.send("Reservation-Transport-Server");
 });
