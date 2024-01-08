@@ -50,7 +50,7 @@ mongoose.connect(uri, (err) => {
   else console.log("Mongo Database connected successfully");
 });
 
-app.post('/reserve', async (req: Request, res: Response) => {
+app.post('/reserve', keycloak.protect( 'realm:client' ), async (req: Request, res: Response) => {
   try {
     const { userId, transportId, nbPerson, date, luggage,duration } = req.body;
 
@@ -114,7 +114,7 @@ app.put('/setStatus/:id', async (req: Request, res: Response) => {
   }
 });
 
-app.delete('/cancelBooking/:id', async (req:any, res:any) => {
+app.delete('/cancelBooking/:id', keycloak.protect( 'realm:client' ), async (req:any, res:any) => {
   try {
     const transportReservation = await TransportReservation.findByIdAndDelete(req.params.id);
     res.json({ message: 'Booking deleted successfully', data: transportReservation });
@@ -135,7 +135,7 @@ app.delete('/deleteByTransportId/:id', async (req: any, res: any) => {
   }
 });
 
-app.put('/updateBooking', async (req:any, res:any) => {
+app.put('/updateBooking', keycloak.protect( 'realm:client' ), async (req:any, res:any) => {
   try {
     
     const transportReservation = await TransportReservation.findByIdAndUpdate(req.body._id, req.body, { new: true });
